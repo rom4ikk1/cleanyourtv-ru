@@ -28,7 +28,7 @@ import java.util.zip.GZIPInputStream;
  */
 final class NumReleases {
     private static final long KEEP_MS = 60 * 60 * 1000L;
-    private static final int MAX = 30;
+    private static final int MAX = 30, SCAN = 90;
     private static List<TvRows.Program> cached = Collections.emptyList();
     private static long cachedAt;
 
@@ -60,7 +60,8 @@ final class NumReleases {
                 for (int n; (n = in.read(buf)) > 0 && body.size() < 16 * 1024 * 1024; ) body.write(buf, 0, n);
             }
             JSONArray items = new JSONObject(body.toString("UTF-8")).getJSONArray("items");
-            for (int i = 0; i < items.length() && movies.size() < MAX; i++) {
+            // More films than the row shows: those with no poster anywhere are left out, the next ones fill in.
+            for (int i = 0; i < items.length() && movies.size() < SCAN; i++) {
                 JSONObject item = items.getJSONObject(i);
                 JSONArray torrents = item.optJSONArray("torrent");
                 if (torrents == null || torrents.length() == 0) continue;
@@ -84,12 +85,9 @@ final class NumReleases {
                 }
                 if (genres.length() > 0) append(meta, genres.toString());
 
-                IviInfo.Info ivi = IviInfo.sameTitle(title);
-                String picture = ivi != null ? ivi.picture : "";
-                String description = ivi != null ? ivi.description : "";
                 Intent page = new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.themoviedb.org/" + type + "/" + id))
                         .setComponent(details);
-                movies.add(new TvRows.Program(title, "", picture, page.toUri(Intent.URI_INTENT_SCHEME), description,
+                movies.add(new TvRows.Program(title, "", "", page.toUri(Intent.URI_INTENT_SCHEME), "",
                         meta.toString(), -1, items.length() - i, -1, genres.toString()));
             }
         } catch (Exception e) {
@@ -99,11 +97,28 @@ final class NumReleases {
             if (http != null) http.disconnect();
         }
         if (!movies.isEmpty()) {
-            movies = withKinopoiskPosters(movies);
+            movies = withIvi(withKinopoiskPosters(movies));
             cached = movies;
             cachedAt = now;
         }
         return movies;
+    }
+
+    /**
+     * In NUM's order, up to MAX films that have a poster: ivi's description and wide picture where ivi has the same
+     * title, and ivi's poster for those Kinopoisk had none. The rest is left out.
+     */
+    private static List<TvRows.Program> withIvi(List<TvRows.Program> movies) {
+        List<TvRows.Program> out = new ArrayList<>();
+        for (TvRows.Program p : movies) {
+            if (out.size() >= MAX) break;
+            IviInfo.Info ivi = IviInfo.sameTitle(p.title);
+            String poster = !p.poster.isEmpty() ? p.poster : ivi != null ? ivi.poster : "";
+            if (poster.isEmpty()) continue;
+            out.add(new TvRows.Program(p.title, p.subtitle, poster, p.intentUri, ivi != null ? ivi.description : "",
+                    p.meta, p.progress, p.order, p.channelId, p.genre, ivi != null ? ivi.picture : ""));
+        }
+        return out;
     }
 
     /**

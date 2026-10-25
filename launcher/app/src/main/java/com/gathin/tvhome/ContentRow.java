@@ -57,7 +57,7 @@ final class ContentRow {
     }
 
     private static final int MAX_ITEMS = 30;
-    private static final int CARD_W_DP = 150;
+    private static final int CARD_W_DP = 96;
     /** Mirrors of TMDB's image server, tried in turn when an app's own proxy for /t/p/ paths is down. */
     private static final String[] TMDB_MIRRORS = {"https://imagetmdb.com", "https://image.tmdb.org"};
 
@@ -75,6 +75,8 @@ final class ContentRow {
         @Override protected int sizeOf(String key, Bitmap value) { return value.getByteCount(); }
     };
     private final Set<String> loading = new HashSet<>();
+    /** Posters that could not be loaded; their cards are left out. */
+    private final Set<String> failed = new HashSet<>();
     private final TextView label;
     private volatile Map<String, List<TvRows.Row>> data = Collections.emptyMap();
     /** The focused dock app's rows, the one on screen, and its programs. Up shows the next row, Down the previous. */
@@ -131,6 +133,8 @@ final class ContentRow {
         if (rowIndex < rows.size()) {
             for (TvRows.Program p : rows.get(rowIndex).items) {
                 if (items.size() >= MAX_ITEMS) break;
+                // Posters only: a card with nothing but a name is not shown.
+                if (p.poster.isEmpty() || failed.contains(p.poster)) continue;
                 if (titles.add(p.title + "\n" + p.subtitle)) items.add(p);
             }
         }
@@ -229,10 +233,11 @@ final class ContentRow {
         if (AppSearch.isBorrowed(p)) {
             main.postDelayed(() -> { if (focused == p) AppSearch.prefetch(activity, p); }, 800);
         }
-        Bitmap big = p.poster.isEmpty() ? null : backdrops.get(p.poster);
+        // The backdrop prefers a wide picture: the card's poster is a vertical one.
+        String uri = p.wide.isEmpty() ? p.poster : p.wide;
+        Bitmap big = uri.isEmpty() ? null : backdrops.get(uri);
         host.onProgramFocused(p, big);
-        if (big != null || p.poster.isEmpty()) return;
-        String uri = p.poster;
+        if (big != null || uri.isEmpty()) return;
         backdropLoader.execute(() -> {
             if (focused != p) return;   // moved on before this one started
             Bitmap bmp = decode(uri, 1280);
@@ -247,7 +252,7 @@ final class ContentRow {
     private static TvRows.Program withInfo(TvRows.Program p, IviInfo.Info info) {
         if (info.description.isEmpty() && info.meta.isEmpty()) return p;
         return new TvRows.Program(p.title, p.subtitle, p.poster, p.intentUri, info.description,
-                p.meta.isEmpty() ? info.meta : p.meta, p.progress, p.order, p.channelId, p.genre);
+                p.meta.isEmpty() ? info.meta : p.meta, p.progress, p.order, p.channelId, p.genre, p.wide);
     }
 
     // ---- views -----------------------------------------------------------------------------------
@@ -270,32 +275,19 @@ final class ContentRow {
             this.title = title;
         }
 
-        /**
-         * Every card is landscape. Landscape art fills it; a portrait poster fills its width and shows its upper part,
-         * where posters keep the faces and the title.
-         */
+        /** Every card is a vertical 2:3 poster; a wide picture (an episode still) is cropped to its middle. */
         void setPoster(Bitmap bmp) {
             poster.setImageBitmap(bmp);
             posterBack.setImageBitmap(null);
+            poster.setScaleType(ImageView.ScaleType.CENTER_CROP);
             fallback.setVisibility(bmp == null ? View.VISIBLE : View.INVISIBLE);
-            if (bmp == null || bmp.getHeight() <= bmp.getWidth()) {
-                poster.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                return;
-            }
-            float w = dp(CARD_W_DP), h = dp(CARD_W_DP * 9 / 16f);
-            float scale = w / bmp.getWidth();
-            android.graphics.Matrix m = new android.graphics.Matrix();
-            m.setScale(scale, scale);
-            m.postTranslate(0, -(bmp.getHeight() * scale - h) * 0.22f);
-            poster.setScaleType(ImageView.ScaleType.MATRIX);
-            poster.setImageMatrix(m);
         }
     }
 
     private final class Adapter extends RecyclerView.Adapter<Holder> {
         @NonNull @Override
         public Holder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            int w = dp(CARD_W_DP), h = dp(CARD_W_DP * 9 / 16f);
+            int w = dp(CARD_W_DP), h = dp(CARD_W_DP * 3 / 2f);
             LinearLayout item = new LinearLayout(activity);
             item.setOrientation(LinearLayout.VERTICAL);
             item.setFocusable(true);
@@ -349,6 +341,8 @@ final class ContentRow {
             title.setEllipsize(TextUtils.TruncateAt.END);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(w, ViewGroup.LayoutParams.WRAP_CONTENT);
             lp.topMargin = dp(6);
+            // The focused card's name is on the shelf above the row, large: posters carry no caption of their own.
+            title.setVisibility(View.GONE);
             item.addView(title, lp);
 
             Holder holder = new Holder(item, posterBack, poster, fallback, track, progress, title);
@@ -420,7 +414,20 @@ final class ContentRow {
             Bitmap bmp = decode(uri, 300);
             main.post(() -> {
                 loading.remove(uri);
-                if (bmp == null) return;
+                if (bmp == null) {
+                    // A poster that does not load takes its card out of the row, like one with no poster at all.
+                    failed.add(uri);
+                    for (int i = shown.size() - 1; i >= 0; i--) {
+                        if (!uri.equals(shown.get(i).poster)) continue;
+                        if (shown.get(i) == focused) continue;   // never pull the card out from under the focus
+                        List<TvRows.Program> left = new ArrayList<>(shown);
+                        left.remove(i);
+                        shown = left;
+                        if (lastFocused > i) lastFocused--;
+                        list.getAdapter().notifyItemRemoved(i);
+                    }
+                    return;
+                }
                 posters.put(uri, bmp);
                 for (int i = 0; i < list.getChildCount(); i++) {
                     RecyclerView.ViewHolder vh = list.getChildViewHolder(list.getChildAt(i));

@@ -96,13 +96,16 @@ final class IviMovies {
                 if (title.isEmpty()) continue;
                 long kpId = r.optLong("kp_id", 0);
                 if (kpId > 0) kpByTitle.put(title, String.valueOf(kpId));
-                String picture = "";
+                // The card is the vertical poster (ivi's, else Kinopoisk's by id); the wide promo picture is the backdrop.
+                String picture = "", poster = "";
                 JSONArray promo = r.optJSONArray("promo_images");
                 if (promo != null && promo.length() > 0) picture = promo.getJSONObject(0).optString("url", "");
                 if (picture.isEmpty() && r.optJSONObject("thumb_originals") != null)
                     picture = r.optJSONObject("thumb_originals").optString("path", "");
-                if (picture.isEmpty() && r.optJSONObject("poster_originals") != null)
-                    picture = r.optJSONObject("poster_originals").optString("path", "");
+                if (r.optJSONObject("poster_originals") != null)
+                    poster = r.optJSONObject("poster_originals").optString("path", "");
+                if (poster.isEmpty() && kpId > 0) poster = "https://kinopoiskapiunofficial.tech/images/posters/kp/" + kpId + ".jpg";
+                if (poster.isEmpty()) continue;
                 String desc = r.optString("synopsis", "");
                 if (desc.isEmpty()) desc = r.optString("description", "").replaceAll("<[^>]+>", " ").replaceAll("\\s+", " ").trim();
                 StringBuilder meta = new StringBuilder();
@@ -115,8 +118,8 @@ final class IviMovies {
                 }
                 Intent watch = new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.ivi.ru/watch/" + r.optLong("id")))
                         .setPackage(IviInfo.PACKAGE);
-                movies.add(new TvRows.Program(title, "", picture, watch.toUri(Intent.URI_INTENT_SCHEME), desc,
-                        meta.toString(), -1, results.length() - i, -1, ""));
+                movies.add(new TvRows.Program(title, "", poster, watch.toUri(Intent.URI_INTENT_SCHEME), desc,
+                        meta.toString(), -1, results.length() - i, -1, "", picture));
             }
         } catch (Exception e) {
             Log.w("TvHome.Movies", "Could not read new movies: " + e);

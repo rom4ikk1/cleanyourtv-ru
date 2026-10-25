@@ -38,9 +38,17 @@ final class TvRows {
         final long order;
         final long channelId;
         final String genre;
+        /** A wide picture for the backdrop when the card's poster is a vertical one; empty: the poster itself. */
+        final String wide;
 
         Program(String title, String subtitle, String poster, String intentUri, String description, String meta,
                 float progress, long order, long channelId, String genre) {
+            this(title, subtitle, poster, intentUri, description, meta, progress, order, channelId, genre, "");
+        }
+
+        Program(String title, String subtitle, String poster, String intentUri, String description, String meta,
+                float progress, long order, long channelId, String genre, String wide) {
+            this.wide = wide;
             this.title = title;
             this.subtitle = subtitle;
             this.poster = poster;
@@ -183,11 +191,11 @@ final class TvRows {
                                         context.getString(R.string.search_num_activity)));
                         items.add(new Program(p.title, p.subtitle, p.poster,
                                 page.toUri(android.content.Intent.URI_INTENT_SCHEME), p.description, p.meta, -1,
-                                p.order, -1, ""));
+                                p.order, -1, "", p.wide));
                         continue;
                     }
                     items.add(direct ? p : new Program(p.title, p.subtitle, p.poster,
-                            SEARCH_PREFIX + pkg + "|" + p.intentUri, p.description, p.meta, -1, p.order, -1, ""));
+                            SEARCH_PREFIX + pkg + "|" + p.intentUri, p.description, p.meta, -1, p.order, -1, "", p.wide));
                 }
                 kept.add(new Row(context.getString(R.string.row_new_movies), items));
             }
