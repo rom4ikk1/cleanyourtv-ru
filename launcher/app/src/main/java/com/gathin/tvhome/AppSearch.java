@@ -29,7 +29,8 @@ import java.util.concurrent.TimeUnit;
  * LazyMedia: its search provider (search_lmd_authority, the one Android TV's global search uses) is asked for the
  * title, and only the same title opens, in its article screen, the way global search opens it. It searches its online
  * sources and takes about half a minute, so a title is looked up once focus rests on it, and every answer is kept.
- * NUM: the title goes to its details screen with ACTION_SEARCH. Not found, or another app: the ivi link opens.
+ * NUM: the title goes to its details screen with ACTION_SEARCH. Any other app: its own search screen
+ * (ACTION_SEARCH) with the title, if it declares one. Not found, or no search screen: the ivi link opens.
  */
 final class AppSearch {
     static final String LMD = "com.lazycatsoftware.lmd";
@@ -83,6 +84,17 @@ final class AppSearch {
             return;
         }
         if (!LMD.equals(target)) {
+            // Any other movie app (Okko, Кинопоиск, START…): its own search screen with the title, if it has one.
+            Intent search = new Intent(Intent.ACTION_SEARCH).setPackage(target)
+                    .putExtra(SearchManager.QUERY, p.title).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            if (!target.isEmpty() && app.getPackageManager().resolveActivity(search, 0) != null) {
+                try {
+                    activity.startActivity(search);
+                    return;
+                } catch (RuntimeException e) {
+                    Log.w("TvHome.Search", target + " could not search " + p.title, e);
+                }
+            }
             openFallback(activity, p, target);
             return;
         }

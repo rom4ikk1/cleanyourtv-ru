@@ -148,60 +148,87 @@ final class TvRows {
      * "direct" opens them where they came from (ivi itself); otherwise they are looked up in that app.
      */
     private static void newMovies(Context context, Map<String, List<Row>> byPackage) {
-        String[] apps = context.getResources().getStringArray(R.array.new_movies_apps);
-        if (apps.length == 0) return;
-        List<Program> movies = IviMovies.load();
-        String continueTitle = context.getString(R.string.row_continue);
-        for (String entry : apps) {
-            String pkg = entry.replaceFirst("=.*$", "");
-            boolean direct = entry.endsWith("=direct");
-            boolean byTmdb = entry.endsWith("=tmdb");
-            if (entry.endsWith("=num")) {
-                // NUM's own list (NumReleases), so Home shows what NUM shows.
-                List<Row> kept = new ArrayList<>();
-                List<Row> rows = byPackage.get(pkg);
-                if (rows != null) {
-                    for (Row r : rows) {
-                        if (r.title.equals(continueTitle) || HISTORY.matcher(r.title).find()) kept.add(r);
-                    }
-                }
-                List<Program> own = NumReleases.load(context);
-                if (!own.isEmpty()) kept.add(new Row(context.getString(R.string.row_new_movies), own));
-                if (kept.isEmpty()) byPackage.remove(pkg);
-                else byPackage.put(pkg, kept);
-                continue;
-            }
-            List<Row> kept = new ArrayList<>();
+        Map<String, String> modes = new HashMap<>();
+        for (String entry : context.getResources().getStringArray(R.array.new_movies_apps)) {
+            int eq = entry.indexOf('=');
+            modes.put(eq < 0 ? entry : entry.substring(0, eq), eq < 0 ? "" : entry.substring(eq + 1));
+        }
+        List<String> own = Arrays.asList(context.getResources().getStringArray(R.array.own_rows_apps));
+        // Every movie app: the configured ones, any app on the TV that calls itself a video app, the known ones.
+        java.util.Set<String> apps = new java.util.LinkedHashSet<>(modes.keySet());
+        apps.addAll(videoApps(context));
+        List<Program> ivi = IviMovies.load();
+        String newTitle = context.getString(R.string.row_new_movies);
+        for (String pkg : apps) {
+            if (own.contains(pkg)) continue;
+            String mode = modes.get(pkg);
             List<Row> rows = byPackage.get(pkg);
+            List<Row> history = new ArrayList<>();
+            Row ownNew = null;
             if (rows != null) {
                 for (Row r : rows) {
-                    if (r.title.equals(continueTitle) || HISTORY.matcher(r.title).find()) kept.add(r);
+                    if (isHistory(context, r)) history.add(r);
+                    else if (ownNew == null && mode == null && NEW_CHANNEL.matcher(r.title).find()) ownNew = r;
                 }
             }
-            if (!movies.isEmpty()) {
-                List<Program> items = new ArrayList<>();
-                for (Program p : movies) {
-                    if (byTmdb) {
-                        // NUM opens a film by its TMDB page; films Wikidata has no TMDB id for are left out.
-                        String id = IviMovies.tmdbId(p.title);
-                        if (id == null) continue;
-                        android.content.Intent page = new android.content.Intent(android.content.Intent.ACTION_VIEW,
-                                Uri.parse("https://www.themoviedb.org/movie/" + id)).setComponent(
-                                android.content.ComponentName.unflattenFromString(
-                                        context.getString(R.string.search_num_activity)));
-                        items.add(new Program(p.title, p.subtitle, p.poster,
-                                page.toUri(android.content.Intent.URI_INTENT_SCHEME), p.description, p.meta, -1,
-                                p.order, -1, "", p.wide));
-                        continue;
-                    }
-                    items.add(direct ? p : new Program(p.title, p.subtitle, p.poster,
-                            SEARCH_PREFIX + pkg + "|" + p.intentUri, p.description, p.meta, -1, p.order, -1, "", p.wide));
-                }
-                kept.add(new Row(context.getString(R.string.row_new_movies), items));
-            }
+            List<Program> fresh;
+            if ("num".equals(mode)) fresh = NumReleases.load(context);          // NUM's own list, as NUM shows it
+            else if ("direct".equals(mode)) fresh = ivi;                         // ivi's catalogue, opened in ivi
+            else if ("tmdb".equals(mode)) fresh = byTmdb(context, ivi);
+            else if (ownNew != null) fresh = ownNew.items;                       // the app's own new releases
+            else fresh = searchIn(pkg, ivi);                                     // ivi's list, found in this app
+            List<Row> kept = new ArrayList<>();
+            // New movies first, nearest the dock; Up from it brings the history.
+            if (!fresh.isEmpty()) kept.add(new Row(newTitle, fresh));
+            kept.addAll(history);
             if (kept.isEmpty()) byPackage.remove(pkg);
             else byPackage.put(pkg, kept);
         }
+    }
+
+    /** Continue watching and the app's History / Continue channels. */
+    private static boolean isHistory(Context context, Row r) {
+        return r.title.equals(context.getString(R.string.row_continue)) || HISTORY.matcher(r.title).find();
+    }
+
+    private static List<Program> searchIn(String pkg, List<Program> movies) {
+        List<Program> out = new ArrayList<>();
+        for (Program p : movies) {
+            out.add(new Program(p.title, p.subtitle, p.poster, SEARCH_PREFIX + pkg + "|" + p.intentUri,
+                    p.description, p.meta, -1, p.order, -1, "", p.wide));
+        }
+        return out;
+    }
+
+    /** ivi's films as TMDB pages in NUM; films Wikidata has no TMDB id for are left out. */
+    private static List<Program> byTmdb(Context context, List<Program> movies) {
+        List<Program> out = new ArrayList<>();
+        for (Program p : movies) {
+            String id = IviMovies.tmdbId(p.title);
+            if (id == null) continue;
+            android.content.Intent page = new android.content.Intent(android.content.Intent.ACTION_VIEW,
+                    Uri.parse("https://www.themoviedb.org/movie/" + id)).setComponent(
+                    android.content.ComponentName.unflattenFromString(context.getString(R.string.search_num_activity)));
+            out.add(new Program(p.title, p.subtitle, p.poster, page.toUri(android.content.Intent.URI_INTENT_SCHEME),
+                    p.description, p.meta, -1, p.order, -1, "", p.wide));
+        }
+        return out;
+    }
+
+    /** TV apps that are movie apps: Android's video category, or listed in movie_apps (apps that do not say so). */
+    private static List<String> videoApps(Context context) {
+        PackageManager pm = context.getPackageManager();
+        List<String> known = Arrays.asList(context.getResources().getStringArray(R.array.movie_apps));
+        List<String> out = new ArrayList<>();
+        android.content.Intent tv = new android.content.Intent(android.content.Intent.ACTION_MAIN)
+                .addCategory(android.content.Intent.CATEGORY_LEANBACK_LAUNCHER);
+        for (android.content.pm.ResolveInfo ri : pm.queryIntentActivities(tv, 0)) {
+            android.content.pm.ApplicationInfo app = ri.activityInfo.applicationInfo;
+            if (known.contains(app.packageName) || app.category == android.content.pm.ApplicationInfo.CATEGORY_VIDEO) {
+                if (!out.contains(app.packageName)) out.add(app.packageName);
+            }
+        }
+        return out;
     }
 
     /** 0 movies, 1 series, 2 animated series, 3 cartoons, or -1 when the genre text says nothing. */
@@ -221,8 +248,10 @@ final class TvRows {
         return name.isEmpty() ? channel : name;
     }
 
-    private static final Pattern HISTORY = Pattern.compile("(?i)(истори|history)");
+    private static final Pattern HISTORY = Pattern.compile("(?i)(истори|history|продолж|continue)");
     private static final Pattern NEW = Pattern.compile("(?i)(новинк|новые|new)");
+    /** A channel an app publishes its new releases in: «Новинки», «Новое», «Премьеры», «New releases»… */
+    private static final Pattern NEW_CHANNEL = Pattern.compile("(?i)(новинк|новые|новое|премьер|сейчас в кино|new|premiere)");
 
     /** The names in their order, those matching pattern moved to the front. */
     private static List<String> first(java.util.Collection<String> names, Pattern pattern) {

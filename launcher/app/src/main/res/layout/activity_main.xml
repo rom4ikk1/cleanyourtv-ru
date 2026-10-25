@@ -201,7 +201,7 @@
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/heroRow"
             android:layout_width="1200dp"
-            android:layout_height="160dp"
+            android:layout_height="146dp"
             android:layout_marginTop="0dp"
             android:visibility="gone" />
     </LinearLayout>

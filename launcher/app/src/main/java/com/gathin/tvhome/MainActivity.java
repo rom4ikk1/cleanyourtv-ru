@@ -477,7 +477,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             heroDesc = findViewById(R.id.heroDesc);
             heroDesc.setVisibility(View.INVISIBLE);
             // A smaller name leaves room for the description and the row above the dock.
-            heroName.setTextSize(TypedValue.COMPLEX_UNIT_SP, 32f);
+            heroName.setTextSize(TypedValue.COMPLEX_UNIT_SP, 28f);
             heroDesc.setWidth(Math.round(getResources().getDisplayMetrics().widthPixels * 0.55f));
             programBackdrop = findViewById(R.id.programBackdrop);
             programBackdropImage = findViewById(R.id.programBackdropImage);

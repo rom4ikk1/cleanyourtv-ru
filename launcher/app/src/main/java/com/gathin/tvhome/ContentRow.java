@@ -57,7 +57,7 @@ final class ContentRow {
     }
 
     private static final int MAX_ITEMS = 30;
-    private static final int CARD_W_DP = 96;
+    private static final int CARD_W_DP = 88;
     /** Mirrors of TMDB's image server, tried in turn when an app's own proxy for /t/p/ paths is down. */
     private static final String[] TMDB_MIRRORS = {"https://imagetmdb.com", "https://image.tmdb.org"};
 

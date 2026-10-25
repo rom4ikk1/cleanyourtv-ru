@@ -22,6 +22,29 @@
         <item>com.lazycatsoftware.lmd</item>
         <item>ru.yourok.num=num</item>
     </string-array>
+    <!-- Any other movie app (Android's video category, or listed here) gets the same two rows: New movies (its own
+         «Новинки»/«Премьеры» channel if it publishes one, else ivi's list found with the app's search) and its
+         history. Known Russian apps that may not declare the video category: -->
+    <string-array name="movie_apps" translatable="false">
+        <item>ru.more.play</item>                 <!-- Okko -->
+        <item>ru.kinopoisk</item>                 <!-- Кинопоиск -->
+        <item>ru.kinopoisk.tv</item>
+        <item>ru.start.androidmobile</item>       <!-- START -->
+        <item>ru.start.tv</item>
+        <item>ru.rt.video.app.tv</item>           <!-- Wink -->
+        <item>gpm.premier.tv</item>               <!-- PREMIER -->
+        <item>com.amediateka.tv</item>            <!-- Амедиатека -->
+        <item>ru.kion.tv</item>                   <!-- KION -->
+        <item>com.vk.tvvideo</item>               <!-- VK Видео -->
+        <item>tv.okko.androidtv</item>
+    </string-array>
+    <!-- Apps that keep their own rows as they publish them (not movie catalogues). -->
+    <string-array name="own_rows_apps" translatable="false">
+        <item>com.google.android.youtube.tv</item>
+        <item>org.videolan.vlc</item>
+        <item>ru.yourok.torrserve</item>
+    </string-array>
+
     <!-- NUM's New movies file (gzip JSON), the one NUM's own home reads. -->
     <string name="num_releases_url" translatable="false">https://releases.yourok.ru/releases/movies_id.json</string>
 
