@@ -119,8 +119,9 @@ public class HomeKeyService extends AccessibilityService {
             }
         }
         // home_key_service.xml subscribes to no events, so the redirect asks for window changes only when it is on.
+        // AppVpn needs them too, to turn its VPN off when another app replaces YouTube without Home in between.
         AccessibilityServiceInfo info = getServiceInfo();
-        if (info != null && !stockHome.isEmpty()) {
+        if (info != null && (!stockHome.isEmpty() || AppVpn.enabled(this))) {
             info.eventTypes |= AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
             setServiceInfo(info);
         }
@@ -185,8 +186,11 @@ public class HomeKeyService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
+        if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
+        CharSequence pkg = event.getPackageName();
+        if (pkg != null) AppVpn.onForeground(this, pkg.toString());
         // stock_home_redirect: the firmware turned the stock launcher back on and its home screen came up.
-        if (stockHome.isEmpty() || event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
+        if (stockHome.isEmpty()) return;
         CharSequence cls = event.getClassName();
         if (cls != null && stockHome.contains(cls.toString())) openHome();
     }

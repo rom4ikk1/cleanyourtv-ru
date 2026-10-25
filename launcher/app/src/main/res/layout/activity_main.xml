@@ -30,6 +30,26 @@
         android:layout_height="match_parent"
         android:alpha="0" />
 
+    <!-- content_row: the focused program's poster behind everything, under a scrim (ContentRow, MainActivity). -->
+    <FrameLayout
+        android:id="@+id/programBackdrop"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0"
+        android:importantForAccessibility="no">
+
+        <ImageView
+            android:id="@+id/programBackdropImage"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/program_scrim" />
+    </FrameLayout>
+
     <!-- Race-weekend panel (a theme's race_calendar, see RaceWeekend): in the free space under the clock,
          shown only from shortly before a weekend's first session until the race is over. Updated once a
          minute with the clock, never animated. -->
@@ -123,6 +143,22 @@
             android:includeFontPadding="false"
             android:singleLine="true" />
 
+        <!-- content_row: the focused program's year, rating and description; its room is kept while empty, so the
+             shelf does not move when focus enters the row. Width set in code. -->
+        <TextView
+            android:id="@+id/heroDesc"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="2dp"
+            android:layout_marginTop="6dp"
+            android:lines="2"
+            android:ellipsize="end"
+            android:textColor="#CCFFFFFF"
+            android:textSize="13sp"
+            android:fontFamily="@string/font_regular"
+            android:lineSpacingExtra="1dp"
+            android:visibility="gone" />
+
         <!-- Cinematic shelf only: when the app was last opened, and the dock position dots. -->
         <TextView
             android:id="@+id/heroMeta"
@@ -143,6 +179,30 @@
             android:layout_marginStart="4dp"
             android:layout_marginTop="16dp"
             android:orientation="horizontal"
+            android:visibility="gone" />
+
+        <!-- content_row: Continue watching and recommendations of the focused dock app (ContentRow). Its width is
+             set in code, since the shelf itself wraps its content. -->
+        <!-- content_row: the name of the row on screen and of the one Up brings. -->
+        <TextView
+            android:id="@+id/heroRowLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="2dp"
+            android:layout_marginTop="4dp"
+            android:singleLine="true"
+            android:textColor="#E6FFFFFF"
+            android:textSize="12sp"
+            android:fontFamily="@string/font_medium"
+            android:letterSpacing="0.16"
+            android:textAllCaps="true"
+            android:visibility="gone" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/heroRow"
+            android:layout_width="1200dp"
+            android:layout_height="124dp"
+            android:layout_marginTop="0dp"
             android:visibility="gone" />
     </LinearLayout>
 
@@ -273,6 +333,42 @@
                     </LinearLayout>
                 </LinearLayout>
 
+            </LinearLayout>
+
+            <!-- Weather under the clock (show_weather); gone until the first answer arrives. Outside leftBlock like
+                 stats, since the clock row has no room left beside the date. -->
+            <LinearLayout
+                android:id="@+id/weatherBlock"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/leftBlock"
+                android:layout_alignStart="@id/leftBlock"
+                android:layout_marginStart="4dp"
+                android:layout_marginTop="6dp"
+                android:orientation="horizontal"
+                android:baselineAligned="true"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/weatherTemp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:singleLine="true"
+                    android:textColor="#E6FFFFFF"
+                    android:textSize="22sp"
+                    android:fontFamily="@string/font_light" />
+
+                <TextView
+                    android:id="@+id/weatherText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:singleLine="true"
+                    android:textColor="#A6FFFFFF"
+                    android:textSize="13sp"
+                    android:fontFamily="@string/font_regular"
+                    android:letterSpacing="0.14"
+                    android:textAllCaps="true" />
             </LinearLayout>
 
             <!-- Shown only when show_stats is on. Outside leftBlock, so the top buttons stay level with the clock

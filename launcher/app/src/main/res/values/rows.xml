@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <!-- ContentRow / TvRows row names. -->
+    <string name="row_continue">Continue watching</string>
+    <string name="row_movies">Movies</string>
+    <string name="row_series">Series</string>
+    <string name="row_animated_series">Animated series</string>
+    <string name="row_cartoons">Cartoons</string>
+    <string name="row_new_movies">New movies</string>
+
+    <!-- Rows never shown, by the name on screen. -->
+    <string-array name="hidden_rows" translatable="false">
+        <item>Избранное</item>
+    </string-array>
+
+    <!-- Apps that show only their history and New movies (popular new films from ivi's catalogue, IviMovies).
+         "=direct": open them as ivi links; "=tmdb": open their TMDB page in that app (NUM), only films with a known
+         TMDB id; otherwise find the title in that app (AppSearch, LazyMedia). -->
+    <string-array name="new_movies_apps" translatable="false">
+        <item>ru.ivi.client=direct</item>
+        <item>com.lazycatsoftware.lmd</item>
+        <item>ru.yourok.num=tmdb</item>
+    </string-array>
+
+    <!-- AppSearch, per app: LazyMedia answers through its search provider (the one Android TV's global search uses) and
+         opens the match in its article screen; NUM takes the title with ACTION_SEARCH in its details screen. -->
+    <string name="search_lmd_authority" translatable="false">com.lazycatsoftware.lmd.tvsearch</string>
+    <string name="search_lmd_activity" translatable="false">com.lazycatsoftware.lmd/com.lazycatsoftware.lazymediadeluxe.ui.tv.activities.ActivityTvArticle</string>
+    <string name="search_num_activity" translatable="false">ru.yourok.num/ru.yourok.num.activity.details.DetailsActivity</string>
+
+    <string name="search_finding">Looking for “%1$s” in %2$s…</string>
+    <string name="search_not_found">Not found in %1$s, opening ivi</string>
+</resources>

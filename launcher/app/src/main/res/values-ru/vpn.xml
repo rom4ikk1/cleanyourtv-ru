@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="vpn_connecting">Подключаю VPN…</string>
+    <string name="vpn_not_connected">VPN не подключился, открываю без него</string>
+</resources>

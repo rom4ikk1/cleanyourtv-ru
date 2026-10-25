@@ -173,9 +173,6 @@ final class RemoteKeys {
         Intent open = ctx.getPackageManager().getLeanbackLaunchIntentForPackage(pkg);
         if (open == null) open = ctx.getPackageManager().getLaunchIntentForPackage(pkg);
         if (open == null) return;
-        try {
-            ctx.startActivity(open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-        } catch (ActivityNotFoundException ignored) {
-        }
+        AppVpn.start(ctx, pkg, open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     }
 }

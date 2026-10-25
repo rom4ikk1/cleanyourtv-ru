@@ -185,6 +185,43 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private TextView raceKicker, raceHeadline, raceSessions;
     /** config.xml show_stats, overridable by a theme. Off: the line is gone and nothing is read. */
     private boolean showStats;
+    /** config.xml show_weather: temperature and conditions beside the date. Null when off. */
+    private HeaderWeather weather;
+    /** config.xml content_row: Continue watching and recommendations under the shelf's name. Null when off. */
+    private ContentRow contentRow;
+    /** With content_row: the focused program's description under the shelf's name, and its poster behind all. */
+    private TextView heroDesc;
+    private View programBackdrop;
+    private ImageView programBackdropImage;
+
+    /** A program in the content row has focus: its name and description on the shelf, its poster behind. */
+    private void showProgram(TvRows.Program p, Bitmap backdrop) {
+        heroName.setText(p.title);
+        String desc = p.description;
+        if (!p.subtitle.isEmpty()) desc = desc.isEmpty() ? p.subtitle : p.subtitle + ". " + desc;
+        if (!p.meta.isEmpty()) desc = desc.isEmpty() ? p.meta : p.meta + "   " + desc;
+        heroDesc.setText(desc);
+        heroDesc.setVisibility(View.VISIBLE);
+        programBackdrop.animate().cancel();
+        if (backdrop == null) {
+            programBackdrop.animate().alpha(0f).setDuration(150).start();
+            return;
+        }
+        programBackdropImage.setImageBitmap(backdrop);
+        // A portrait poster stands whole at the right; landscape art fills the screen.
+        programBackdropImage.setScaleType(backdrop.getHeight() > backdrop.getWidth()
+                ? ImageView.ScaleType.FIT_END : ImageView.ScaleType.CENTER_CROP);
+        programBackdrop.setAlpha(Math.min(programBackdrop.getAlpha(), 0.3f));
+        programBackdrop.animate().alpha(1f).setDuration(animations && !reducedMotion ? 300 : 0).start();
+    }
+
+    private void clearProgram() {
+        if (heroDesc == null) return;
+        heroDesc.setText("");
+        heroDesc.setVisibility(View.INVISIBLE);
+        programBackdrop.animate().cancel();
+        programBackdrop.animate().alpha(0f).setDuration(animations && !reducedMotion ? 200 : 0).start();
+    }
     private boolean shamsi;
     /** greeting_name: said after the greeting, which is shown in capitals. */
     private String greetingName = "";
@@ -364,6 +401,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         settingsKeycodes = cfg.settingsKeycodes;
         settingsKeyPanel = cfg.settingsKeyPanel;
         COLUMNS = cfg.columns;
+        AppAdapter.maxTileDp = getResources().getInteger(R.integer.tile_max_dp);
         animations = cfg.animations;
         advancedEffects = cfg.animations && cfg.advancedEffects;
         reducedMotion = cfg.reducedMotion;
@@ -405,6 +443,33 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (!ambientGlow) ambient.setVisibility(View.GONE);
         heroName = findViewById(R.id.heroName);
         hero = findViewById(R.id.hero);
+        if (getResources().getBoolean(R.bool.content_row)) {
+            RecyclerView rowList = findViewById(R.id.heroRow);
+            ViewGroup.LayoutParams rlp = rowList.getLayoutParams();
+            rlp.width = getResources().getDisplayMetrics().widthPixels - Math.round(124 * density);
+            rowList.setLayoutParams(rlp);
+            heroDesc = findViewById(R.id.heroDesc);
+            heroDesc.setVisibility(View.INVISIBLE);
+            // A smaller name leaves room for the description and the row above the dock.
+            heroName.setTextSize(TypedValue.COMPLEX_UNIT_SP, 32f);
+            heroDesc.setWidth(Math.round(getResources().getDisplayMetrics().widthPixels * 0.55f));
+            programBackdrop = findViewById(R.id.programBackdrop);
+            programBackdropImage = findViewById(R.id.programBackdropImage);
+            TextView rowLabel = findViewById(R.id.heroRowLabel);
+            rowLabel.setVisibility(View.VISIBLE);
+            contentRow = new ContentRow(this, rowList, rowLabel, new ContentRow.Host() {
+                @Override public void onRowUp() {
+                    clearProgram();
+                    heroName.setText(adapter.labelAt(lastFocused % COLUMNS));
+                    firstTopButton().requestFocus();
+                }
+                @Override public void onRowDown() {
+                    clearProgram();
+                    focusTile(lastFocused % COLUMNS);
+                }
+                @Override public void onProgramFocused(TvRows.Program p, Bitmap backdrop) { showProgram(p, backdrop); }
+            });
+        }
         // The hero is now a group (name, and the cinematic lines): without this every fade of the default
         // shelf would render it through an offscreen buffer first, as the glow above notes.
         hero.forceHasOverlappingRendering(false);
@@ -443,6 +508,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         raceHeadline = findViewById(R.id.raceHeadline);
         raceSessions = findViewById(R.id.raceSessions);
         showStats = cfg.showStats;
+        if (getResources().getBoolean(R.bool.show_weather)) {
+            weather = new HeaderWeather(findViewById(R.id.weatherBlock), findViewById(R.id.weatherTemp),
+                    findViewById(R.id.weatherText), getString(R.string.latitude), getString(R.string.longitude));
+        }
         shamsi = cfg.shamsiDate;
         greetingName = cfg.greetingName;
         if (shamsi) {
@@ -538,7 +607,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             int gridRows = itemH * rowsBelowDock;
             // Keep the hero below the header when the library is enabled on a short screen,
             // even when the theme requests an extra visible row below the dock.
-            int shelfClearance = cfg.appLibrary ? hero.getMeasuredHeight() + (int) (40 * density) : 0;
+            // The content row's shelf is tall already and leaves its own gap, so it takes less clearance.
+            int shelfClearance = cfg.appLibrary
+                    ? hero.getMeasuredHeight() + (int) ((contentRow != null ? 12 : 40) * density) : 0;
             int want = Math.max(shelfClearance, h - dockRow - gridRows - (int) (AppAdapter.BOTTOM_ROOM_DP * density));
             // Where the rows cannot fit even at the smallest tile (3 rows with the title on), the title keeps its
             // room above the dock and the last rows run off the bottom instead of the title drawing over the clock.
@@ -854,6 +925,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             pillsShown = true;
         }
         if (showStats) startStats();
+        if (weather != null) weather.start();
+        if (contentRow != null) contentRow.refresh();
+        AppVpn.releaseIfOurs(this);
+        AppVpn.ensureUp(this);
         sky.update();
         wallpaperPlayer.start();
         handler.postDelayed(minuteTick, MINUTE_MS);
@@ -1031,6 +1106,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroArt.animate().cancel();
         handler.removeCallbacks(minuteTick);
         stopStats();
+        if (weather != null) weather.stop();
+        clearProgram();
         if (diya != null) diya.stop();
         cancelPendingFocusScroll();
         // Nothing of ours stays on screen over another app; an undecided prompt simply returns next time.
@@ -1579,7 +1656,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void showHero(int position, float dockTopInRoot) {
         String label = adapter.labelAt(position);
         int color = adapter.ambientColorAt(position);
-        float y = dockTopInRoot - 14 * density - 26 * density - hero.getHeight();
+        // The content row's shelf ends in the row itself, which needs less air above the dock than the bare name.
+        float y = dockTopInRoot - (contentRow != null ? 14 : 40) * density - hero.getHeight();
         boolean changed = !label.contentEquals(heroName.getText());
         if (cinematic && heroArtAlpha > 0f) showHeroArt(position);
 
@@ -1637,6 +1715,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** The shelf's text for this dock app: its name and, on the cinematic shelf, "Last opened" and the dots. */
     private void fillHero(int position, String label) {
         heroName.setText(label);
+        if (contentRow != null) contentRow.show(adapter.packageAt(position));
         if (!cinematic) return;
         updateHeroMeta(position);
         updateHeroDots(position);
@@ -2107,7 +2186,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     rtlAppGrid, keyCode == KeyEvent.KEYCODE_DPAD_LEFT);
         }
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-            if (position < COLUMNS) return false;          // dock row: let focus move to the top bar
+            if (position < COLUMNS) {
+                // Dock: into the focused app's content row when it has one, else up to the top bar.
+                return contentRow != null && dockRow && contentRow.focus();
+            }
             target = position - COLUMNS;
         } else {
             int lastRowStart = ((count - 1) / COLUMNS) * COLUMNS;

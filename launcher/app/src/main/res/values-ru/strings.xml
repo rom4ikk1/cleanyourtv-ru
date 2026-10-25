@@ -108,7 +108,7 @@
     <string name="library_app_info">О приложении</string>
     <string name="library_save_failed">Не удалось сохранить ярлык</string>
     <string name="library_recent">Новое · Добавить на главный экран</string>
-    <string name="library_hint_add">Нажать: добавить на главный экран · Удержать: опции</string>
+    <string name="library_hint_add">Нажать: открыть · Удержать: добавить на главный экран</string>
     <string name="library_hint_open">Нажать: открыть · Удержать: опции</string>
     <plurals name="library_app_count">
         <item quantity="one">%1$d приложение</item>

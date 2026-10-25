@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="row_continue">Продолжить просмотр</string>
+    <string name="row_movies">Фильмы</string>
+    <string name="row_series">Сериалы</string>
+    <string name="row_animated_series">Мультсериалы</string>
+    <string name="row_cartoons">Мультфильмы</string>
+    <string name="row_new_movies">Новые фильмы</string>
+    <string name="search_finding">Ищу «%1$s» в %2$s…</string>
+    <string name="search_not_found">В %1$s не нашлось, открываю в Иви</string>
+</resources>

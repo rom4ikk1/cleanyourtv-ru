@@ -648,8 +648,8 @@ final class AppLibraryDialog {
             check.setVisibility(home || recent ? View.VISIBLE : View.GONE);
             holder.itemView.setOnClickListener(v -> {
                 if (selectionMode) changeHome(app, !onHome.test(pkg));
-                else if (onHome.test(pkg)) open(app);
-                else changeHome(app, true);
+                // OK opens every app here, so the library works as the app drawer; Add to Home stays in the hold menu.
+                else open(app);
             });
             holder.itemView.setOnLongClickListener(selectionMode ? null : v -> { showActions(app, v); return true; });
             holder.itemView.setOnFocusChangeListener((v, focused) -> {

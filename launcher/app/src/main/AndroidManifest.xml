@@ -8,6 +8,10 @@
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Only for the header weather (show_weather, HeaderWeather): one Open-Meteo request every 30 minutes on Home. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Continue watching and preview rows other apps publish (TvRows, docs/watch-next.md). Granted from the shell. -->
+    <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- Needed since Android 10 to read the Wi-Fi network name for the network pill. Never requested at
          runtime: build-and-install grants it with pm grant, so lint's Android 12 "ask for COARSE with
@@ -59,13 +63,17 @@
              Fire TV: the real settings menu lives in the stock launcher (see settings_fallback_components). -->
         <package android:name="com.xiaomi.mitv.settings" />
         <package android:name="com.tcl.settings" />
+        <!-- ContentRow: LazyMedia's search provider finds its page for a title from another app's row. -->
+        <provider android:authorities="com.lazycatsoftware.lmd.tvsearch" />
         <package android:name="com.amazon.tv.launcher" />
         <!-- Coocaa OS sources for the Inputs menu (coocaa_sources); see CoocaaSources. -->
         <provider android:authorities="com.skyworth.tv.provider" />
         <provider android:authorities="com.skyworth.tv.sdk.provider" />
     </queries>
 
+    <!-- usesCleartextTraffic: some apps publish their content row posters over plain http (LazyMedia's zonapic). -->
     <application
+        android:usesCleartextTraffic="true"
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:banner="@drawable/banner"

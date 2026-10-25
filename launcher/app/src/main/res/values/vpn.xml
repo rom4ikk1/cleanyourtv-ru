@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <!-- AppVpn: apps that open only after the VPN app has connected, and how to drive the VPN app. Empty
+         vpn_connect_receiver turns the feature off. -->
+    <string-array name="vpn_for_apps" translatable="false">
+        <item>com.google.android.youtube.tv</item>
+    </string-array>
+    <string name="vpn_connect_receiver" translatable="false">llc.itdev.incy/.receiver.VpnIntentReceiver</string>
+    <string name="vpn_connect_action" translatable="false">llc.itdev.incy.CONNECT</string>
+    <string name="vpn_disconnect_action" translatable="false">llc.itdev.incy.DISCONNECT</string>
+    <!-- true: never turn the VPN off, and turn it on whenever Home comes up without it (the TV switched on). For a
+         VPN app set to route only some apps. false: on for vpn_for_apps only, off again back on Home. -->
+    <bool name="vpn_keep_on">true</bool>
+
+    <string name="vpn_connecting">Connecting VPN…</string>
+    <string name="vpn_not_connected">VPN did not connect, opening anyway</string>
+</resources>
