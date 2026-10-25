@@ -5,6 +5,8 @@
 #
 # Apply:   TV_HOST=<ip> tools/disable.sh examples/google-chromecast-gtv-4k/debloat-keep-cast.txt
 # Undo:    TV_HOST=<ip> tools/restore.sh examples/google-chromecast-gtv-4k/debloat-keep-cast.txt com.google.android.apps.tv.launcherx
+# Check:   TV_HOST=<ip> tools/venv/bin/python -I tools/check.py examples/google-chromecast-gtv-4k/debloat-keep-cast.txt com.google.android.apps.tv.launcherx
+#          launcherx stays Home with this list, also with the launcher added by redirect (debloat.txt, "Home by redirect").
 # Everything is DISABLED, not uninstalled.
 #
 # Kept on purpose, unlike debloat.txt:

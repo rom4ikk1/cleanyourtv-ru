@@ -1,5 +1,8 @@
 """Checks the fate each examples/README.md row claims for a package against that folder's list.
 
+The row's notes come from the folder's tv.json (tools/gen_tables.py writes the table from them), so
+this reads them there: a list PR is checked before its row is generated.
+
 A row answers "what does this list do?" with a package name in backticks and one word
 after it: `kept` (the list leaves the package alone) or `disabled` (the list turns it
 off). tools/disable.sh sends the bare package names it finds in debloat.txt and strips
@@ -16,6 +19,7 @@ copied here.
 
 Run from the repository root: python3 -m unittest discover -s tests -v
 """
+import json
 import re
 from pathlib import Path
 import unittest
@@ -24,8 +28,6 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES = ROOT / "examples"
 
-# A row of the examples table: | `folder/` | TV | OS | Notes |
-ROW = re.compile(r"^\|\s*`([A-Za-z0-9][A-Za-z0-9._-]*)/`\s*\|(.*)\|\s*$")
 # A package name in backticks. Deliberately loose about the shape so a typo in a row is
 # compared rather than skipped; test_list_format is what refuses a bad name in a list.
 BACKTICKED = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)`")
@@ -68,17 +70,12 @@ def stock_launchers():
     return set(line.split("=", 1)[1].strip().strip('"').split())
 
 
-def table_rows(readme):
-    """(folder, line number, notes text) for every row of the examples table that has a folder."""
+def table_rows(examples):
+    """(folder, where, notes text) for every folder whose tv.json gives its row's notes."""
     rows = []
-    lines = Path(readme).read_text(encoding="utf-8").split("\n")
-    start = next(i for i, l in enumerate(lines) if l.startswith("| Folder |"))
-    for number, line in enumerate(lines[start + 2:], start + 3):
-        if not line.startswith("|"):
-            break
-        match = ROW.match(line)
-        if match and (EXAMPLES / match.group(1)).is_dir():
-            rows.append((match.group(1), number, match.group(2)))
+    for folder in sorted(p for p in Path(examples).iterdir() if (p / "tv.json").is_file()):
+        notes = json.loads((folder / "tv.json").read_text(encoding="utf-8")).get("notes", "")
+        rows.append((folder.name, f"examples/{folder.name}/tv.json", notes))
     return rows
 
 
@@ -100,16 +97,16 @@ class ReadmePackageFatesTest(unittest.TestCase):
     def test_every_claim_matches_the_list(self):
         exempt = stock_launchers()
         problems = []
-        for folder, number, notes in table_rows(EXAMPLES / "README.md"):
+        for folder, where, notes in table_rows(EXAMPLES):
             active = list_packages(EXAMPLES / folder / "debloat.txt")
-            problems += [f"examples/README.md:{number} {p}"
+            problems += [f"{where} {p}"
                          for p in disagreements(folder, notes, active, exempt)]
         self.assertFalse(problems, "\n".join(problems))
 
     def test_it_reads_the_rows_that_state_a_fate(self):
         # So the sweep above cannot pass by reading nothing: a parse change that stops
         # matching would otherwise report zero claims instead of failing.
-        stated = [(f, n) for f, n, notes in table_rows(EXAMPLES / "README.md") if claims(notes)]
+        stated = [(f, n) for f, n, notes in table_rows(EXAMPLES) if claims(notes)]
         self.assertGreaterEqual(len(stated), 8,
                                 f"only {len(stated)} rows state a package's fate: {stated}")
 
@@ -165,11 +162,10 @@ class ReaderTest(unittest.TestCase):
         self.assertEqual(len(problems), 1)
         self.assertIn("does not list it", problems[0])
 
-    def test_rows_are_read_from_the_examples_table_only(self):
-        rows = table_rows(EXAMPLES / "README.md")
+    def test_rows_are_read_from_the_list_folders_only(self):
+        rows = table_rows(EXAMPLES)
         folders = [f for f, _, _ in rows]
         self.assertIn("sankey-smart2ktvse", folders)
-        # The device-notes table at the end of the page indexes no list and is not read.
         self.assertTrue(all((EXAMPLES / f / "debloat.txt").is_file() for f in folders))
 
 

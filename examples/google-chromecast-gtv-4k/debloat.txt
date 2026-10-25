@@ -75,7 +75,9 @@
 #   with STOCK_LAUNCHER=none installs, then stops at its Home check, as expected while launcherx is
 #   Home. Home pressed in an app landed on the new launcher. After a reboot the TV stayed on the Google
 #   TV home: it is drawn before Android binds HomeKeyService, so no window change reaches the redirect
-#   (#698 and #1024 work on this).
+#   (#698 and #1024 work on this). With launcherx kept as Home, tools/check.py needs it as the second
+#   argument, or every run reports Home as drift: the Check line in debloat-keep-cast.txt, which is the
+#   list this setup matches.
 # - With the redirect on, the YouTube button did nothing although launcherx was enabled. The redirect
 #   opens the launcher with ACTION_MAIN + CATEGORY_HOME, so this is consistent with #698's explanation
 #   (this launcher becomes the Home process and launcherx loses its Android 14 exemption for background

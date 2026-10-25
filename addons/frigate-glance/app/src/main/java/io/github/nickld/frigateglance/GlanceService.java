@@ -202,8 +202,21 @@ public class GlanceService extends Service {
     static final class Overview {
         boolean running, mqttUp, frigateUp;
         String mqttHost = "", frigateHost = "", mqttError = "", frigateError = "";
+        /** SHA-256 of the pinned certificate and of a different one Frigate now presents ("" for none). */
+        String pin = "", offeredPin = "";
         long mqttSince, frigateSince, lastMessageAt;
         int cameras;
+    }
+
+    /** Reads Frigate's config again, first trusting the certificate it now presents if asked; the Overview's Frigate row. */
+    public static void checkFrigate(boolean trustNewCertificate) {
+        GlanceService s = instance;
+        FrigateApi f = s == null ? null : s.frigate;
+        if (f == null) return;
+        s.refetcher.execute(() -> {
+            if (trustNewCertificate && f.trustOffered()) Log.i(TAG, "trusted Frigate's new certificate " + f.pin().substring(0, 12));
+            s.fetchFrigateConfig();
+        });
     }
 
     static Overview overview() {
@@ -219,6 +232,11 @@ public class GlanceService extends Service {
         o.mqttError = s.mqttError;
         o.frigateError = s.frigateError;
         o.cameras = s.cameraNames.size();
+        FrigateApi f = s.frigate;
+        if (f != null) {
+            o.pin = f.pin();
+            o.offeredPin = f.offeredPin();
+        }
         GlanceConfig c = s.config;
         if (c != null) {
             o.mqttHost = hostPort(c.mqttUrl, 1883);
@@ -400,6 +418,12 @@ public class GlanceService extends Service {
                 public String liveUrl(String camera) {
                     GlanceConfig cfg = config;
                     return cfg == null || !cfg.liveVideo ? null : GlanceService.liveUrl(camera);
+                }
+
+                @Override
+                public boolean newCertificate() {
+                    FrigateApi f = frigate;
+                    return f != null && !f.offeredPin().isEmpty();
                 }
             }, KeyService::setFiltering);
         } else {

@@ -49,6 +49,11 @@ CATALOGUE = {
         "acr",
         "Coocaa/Skyworth ACR, used to target the ads pushed to the set",
     ),
+    "tv.samba.ssm.ui": (
+        "acr",
+        "Samba TV ACR on TCL sets: identifies what is on screen to target ads; shipped enabled on the "
+        "Netherlands 43P69K (examples/tcl-g10-google-tv) and a US 55Q651G",
+    ),
     "org.droidtv.candeebug": (
         "telemetry",
         "\"DAC\" analytics on Philips sets",
@@ -64,6 +69,10 @@ CATALOGUE = {
     "org.droidtv.tv.frameworklogger": (
         "telemetry",
         "framework and reboot logging",
+    ),
+    "com.tcl.logkit": (
+        "telemetry",
+        "TCL log capture and upload; disabled in most TCL lists in examples/",
     ),
     "com.google.android.feedback": (
         "telemetry",

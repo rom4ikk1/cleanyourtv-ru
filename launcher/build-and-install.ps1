@@ -65,6 +65,11 @@ if ($LASTEXITCODE -ne 0) { throw 'APK upload failed' }
 $out = & $py -I ..\tools\tv.py 'pm install -r /data/local/tmp/tvhome.apk; rm -f /data/local/tmp/tvhome.apk'
 Write-Host $out
 if ("$out" -notmatch 'Success') { throw 'pm install failed; the stock launcher was left untouched' }
+# Stop the instance Android restarted mid-update, which can come up non-occluding (see build-and-install.sh,
+# #1101), and write back a key helper the force stop took off the list. Through stdin: Windows PowerShell 5.1
+# drops the inner double quotes from a native argument.
+'s=$(settings get secure enabled_accessibility_services); a=$(settings get secure accessibility_enabled); am force-stop com.gathin.tvhome; case "$s" in *com.gathin.tvhome*) settings put secure enabled_accessibility_services ""; settings put secure enabled_accessibility_services "$s"; settings put secure accessibility_enabled "$a" ;; esac' |
+    & $py -I ..\tools\tv.py --batch | Out-Null
 # Android 9 only accepts a component here; Android 10+ also takes a bare package name.
 $out = & $py -I ..\tools\tv.py 'cmd package set-home-activity --user 0 com.gathin.tvhome/.MainActivity'
 Write-Host $out

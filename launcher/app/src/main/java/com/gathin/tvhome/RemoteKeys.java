@@ -5,7 +5,10 @@ import android.accessibilityservice.AccessibilityServiceInfo;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
+import android.media.AudioManager;
 import android.media.tv.TvContract;
+import android.os.Build;
+import android.provider.Settings;
 import android.view.KeyEvent;
 
 import java.util.ArrayList;
@@ -14,6 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.ToIntFunction;
+import java.util.regex.Pattern;
 
 /**
  * Remote buttons that only the stock launcher answered, for InputKeyService and HomeKeyService: app_keys
@@ -22,12 +26,21 @@ import java.util.function.ToIntFunction;
  * prefix makes an entry the long-press action instead: "hold:KEYCODE_BUTTON_8:org.xbmc.kodi" opens Kodi when
  * that button is held for HOLD_MS, while the unprefixed entry still opens on a tap; "hold:scan:490:..." does
  * the same for a scancode. One set of maps for both services; whichever filters the key first consumes it.
- * A target of "input:<input id>" switches to that TV input (an HDMI port) instead of opening an app.
+ * A target of "input:<input id>" switches to that TV input (an HDMI port) instead of opening an app, a target
+ * of "inputs" opens the input switcher, for a remote whose source button sends a key Android does not map, and
+ * one of the action words (back, home, recents, mute, sleep, screensaver, settings, wifi) does that action.
  */
 final class RemoteKeys {
 
     /** How long a button is held before its "hold:" entry wins (Android's long-press timeout). */
     static final long HOLD_MS = 500;
+
+    /** The app_keys target that opens the input switcher, as "scan:365:inputs". */
+    static final String INPUTS = "inputs";
+
+    /** Pre-compiled regex patterns to avoid re-compiling Patterns on every entry during key parsing. */
+    private static final Pattern NUMERIC_KEY = Pattern.compile("[0-9]{1,6}");
+    private static final Pattern KEYCODE_KEY = Pattern.compile("KEYCODE_[A-Z0-9_]+");
 
     private RemoteKeys() { }
 
@@ -53,9 +66,9 @@ final class RemoteKeys {
             if (parts.length != 2 || parts[1].trim().isEmpty()) continue;
             String key = parts[0].trim();
             int code;
-            if (key.matches("[0-9]{1,6}")) {
+            if (NUMERIC_KEY.matcher(key).matches()) {
                 code = Integer.parseInt(key);
-            } else if (key.matches("KEYCODE_[A-Z0-9_]+")) {
+            } else if (KEYCODE_KEY.matcher(key).matches()) {
                 code = names.applyAsInt(key);   // keyCodeFromString takes digits only from API 29, names always
             } else {
                 continue;
@@ -106,7 +119,7 @@ final class RemoteKeys {
             String[] parts = entry.split(":", 3);
             if (parts.length != 3 || !parts[0].trim().equals("scan") || parts[2].trim().isEmpty()) continue;
             String code = parts[1].trim();
-            if (!code.matches("[0-9]{1,6}")) continue;
+            if (!NUMERIC_KEY.matcher(code).matches()) continue;
             int scan = Integer.parseInt(code);
             if (scan > 0) keys.put(scan, parts[2].trim());
         }
@@ -153,10 +166,87 @@ final class RemoteKeys {
         return id.isEmpty() ? null : id;
     }
 
+    /**
+     * The accessibility global action for an action word, or 0 when the target is something else. "sleep" is
+     * GLOBAL_ACTION_LOCK_SCREEN, which puts a TV in standby (as the Sleep Timer add-on does); Android has it from 28.
+     */
+    static int globalAction(String target, int sdk) {
+        switch (target) {
+            case "back": return AccessibilityService.GLOBAL_ACTION_BACK;
+            case "home": return AccessibilityService.GLOBAL_ACTION_HOME;
+            case "recents": return AccessibilityService.GLOBAL_ACTION_RECENTS;
+            case "sleep": return sdk >= 28 ? AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN : 0;
+            default: return 0;
+        }
+    }
+
+    /** Whether a target is an action word rather than an app or an input. A package name always has a dot. */
+    static boolean isAction(String target) {
+        switch (target) {
+            case "back": case "home": case "recents": case "mute": case "sleep":
+            case "screensaver": case "settings": case "wifi":
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /** Runs an action word; false for an app or an input. Needs no permission the launcher does not already have. */
+    private static boolean runAction(Context ctx, String target) {
+        if (!isAction(target)) return false;
+        int global = globalAction(target, Build.VERSION.SDK_INT);
+        if (global != 0) {
+            if (ctx instanceof AccessibilityService) ((AccessibilityService) ctx).performGlobalAction(global);
+            return true;
+        }
+        switch (target) {
+            case "mute":
+                // The media stream a TV plays everything on, with its own volume bar, as a remote's mute button would.
+                AudioManager audio = ctx.getSystemService(AudioManager.class);
+                if (audio != null) audio.adjustStreamVolume(AudioManager.STREAM_MUSIC,
+                        AudioManager.ADJUST_TOGGLE_MUTE, AudioManager.FLAG_SHOW_UI);
+                break;
+            case "screensaver":
+                // The screensaver chosen in the TV's settings, through the system's "start now" shortcut; the
+                // launcher's own clock where the firmware has no such shortcut.
+                Intent dream = new Intent(Intent.ACTION_MAIN)
+                        .setClassName("com.android.systemui", "com.android.systemui.Somnambulator");
+                if (ctx.getPackageManager().resolveActivity(dream, 0) == null) dream = new Intent(ctx, ClockActivity.class);
+                start(ctx, dream);
+                break;
+            case "settings":
+                start(ctx, SystemSettings.intent(ctx, Settings.ACTION_SETTINGS));
+                break;
+            case "wifi":
+                start(ctx, SystemSettings.intent(ctx, Settings.ACTION_WIFI_SETTINGS));
+                break;
+            default:
+                break;   // "sleep" below Android 9: consumed, nothing to do
+        }
+        return true;
+    }
+
+    private static void start(Context ctx, Intent intent) {
+        try {
+            ctx.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (ActivityNotFoundException | SecurityException ignored) {
+        }
+    }
+
     /** Opens an app from a remote button: its TV entry if it has one, else its phone entry. An "input:<id>" target
-     *  switches to that TV input (an HDMI port) instead. */
+     *  switches to that TV input (an HDMI port) instead, and an action word runs that action. */
     static void launch(Context ctx, String pkg) {
-        if (pkg == null) return;
+        if (pkg == null || runAction(ctx, pkg)) return;
+        if (INPUTS.equals(pkg)) {
+            // This launcher's own Inputs menu, as InputsRequestActivity opens it: addressed to Home directly, so a
+            // vendor input picker that also answers VIEW_INPUTS never turns it into a chooser.
+            try {
+                ctx.startActivity(new Intent(ctx, MainActivity.class).setAction(MainActivity.ACTION_VIEW_INPUTS)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            } catch (ActivityNotFoundException ignored) {
+            }
+            return;
+        }
         String inputId = inputId(pkg);
         if (inputId != null) {
             // The same passthrough URI the Inputs menu opens, which the Live TV app handles.

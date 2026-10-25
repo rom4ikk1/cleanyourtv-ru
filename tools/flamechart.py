@@ -17,7 +17,6 @@ import colorsys
 import hashlib
 import os
 import re
-import statistics
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

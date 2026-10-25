@@ -1,9 +1,11 @@
 package com.gathin.tvhome;
 
+import android.accessibilityservice.AccessibilityService;
 import java.util.Arrays;
 import java.util.Map;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -92,5 +94,35 @@ public class RemoteKeysTest {
         assertEquals("app", RemoteKeys.target("app", "hold.app", RemoteKeys.HOLD_MS - 1));
         assertEquals("app", RemoteKeys.target("app", null, 5000));
         assertNull(RemoteKeys.target(null, "hold.app", 0));
+    }
+
+    @Test public void inputsTargetKeptForAScancode() {
+        Map<Integer, String> scans = RemoteKeys.parseAppScancodes(Arrays.asList("scan:365:inputs"));
+        assertEquals(RemoteKeys.INPUTS, scans.get(365));
+        assertNull(RemoteKeys.inputId(RemoteKeys.INPUTS));
+    }
+
+    @Test public void actionWordsAreTargets() {
+        Map<Integer, String> keys = parse("190:mute", "KEYCODE_BUTTON_8:screensaver");
+        assertEquals("mute", keys.get(190));
+        assertEquals("screensaver", keys.get(195));
+        assertEquals("sleep", parseHold("hold:190:sleep").get(190));
+        for (String word : new String[] {"back", "home", "recents", "mute", "sleep", "screensaver", "settings", "wifi"}) {
+            assertTrue(word, RemoteKeys.isAction(word));
+        }
+        assertFalse(RemoteKeys.isAction("com.netflix.ninja"));
+        assertFalse(RemoteKeys.isAction("input:com.tcl.tvinput/.passthroughinput.TvPassThroughService/HW1"));
+        assertFalse(RemoteKeys.isAction("Mute"));
+    }
+
+    @Test public void globalActions() {
+        assertEquals(AccessibilityService.GLOBAL_ACTION_BACK, RemoteKeys.globalAction("back", 26));
+        assertEquals(AccessibilityService.GLOBAL_ACTION_HOME, RemoteKeys.globalAction("home", 26));
+        assertEquals(AccessibilityService.GLOBAL_ACTION_RECENTS, RemoteKeys.globalAction("recents", 26));
+        assertEquals(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN, RemoteKeys.globalAction("sleep", 28));
+        // No lock-screen action before Android 9: the key is consumed and nothing happens.
+        assertEquals(0, RemoteKeys.globalAction("sleep", 27));
+        assertEquals(0, RemoteKeys.globalAction("mute", 34));
+        assertEquals(0, RemoteKeys.globalAction("com.netflix.ninja", 34));
     }
 }

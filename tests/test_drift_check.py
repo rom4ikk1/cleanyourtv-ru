@@ -54,8 +54,10 @@ def answer(command):
         return dumpsys_package(command.split()[-1])
     if "resolve-activity" in command:
         return (state["home"] or "") + "\n"
-    if "query-activities" in command:
+    if "query-activities" in command and "category.HOME" in command:
         return "".join(f"  {component}\n" for component in state["home_activities"])
+    if "query-activities" in command and "cursor.item/channel" in command:
+        return "".join(f"  {name}/.MainActivity\n" for name in state.get("input_apps", []))
     return ""
 
 
@@ -305,6 +307,16 @@ class DriftCheckTest(unittest.TestCase):
         result = self.run_check("--fix", str(self.list_path))
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn(f"pm disable-user --user 0 {SETUP}", self.sent())
+
+    def test_fix_leaves_the_app_that_opens_the_inputs_on(self):
+        # The update turned the Live TV app back on; it is what the launcher's HDMI tiles open.
+        self.write_list(["com.example.livetv", "com.example.music"])
+        self.tv(installed=BASE + ["com.example.livetv"], input_apps=["com.example.livetv"],
+                disabled=["com.example.store", STOCK])
+        result = self.run_check("--fix", str(self.list_path))
+        self.assertIn("leaving com.example.livetv on", result.stdout)
+        self.assertIn("pm disable-user --user 0 com.example.music", self.sent())
+        self.assertNotIn("pm disable-user --user 0 com.example.livetv", self.sent())
 
     def test_fix_leaves_setupwraith_on_when_the_wifi_cannot_be_read(self):
         self.write_list([SETUP])

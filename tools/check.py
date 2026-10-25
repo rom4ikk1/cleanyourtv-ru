@@ -155,13 +155,23 @@ def asks_for_input_hardware(dev, name):
     return bool(block and INPUT_PERMISSION in block.group(1))
 
 
+def handler_apps(dev):
+    """The apps the TV opens its inputs with (VIEW on a passthrough channel) and the ones it opens
+    Settings with, as two sets of package names, the same query disable.sh makes."""
+    q = "cmd package query-activities --brief"
+    inputs = recovery.shell(dev, f"{q} -a android.intent.action.VIEW -t vnd.android.cursor.item/channel")
+    settings = recovery.shell(dev, f"{q} -a android.settings.SETTINGS")
+    names = lambda out: set(re.findall(r"^\s*([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)/", out, re.M))
+    return names(inputs), names(settings)
+
+
 def safety_checks(dev, names):
     """The names disable.sh would leave enabled, each with the reason, as a list of (name, why).
 
     These are the checks disable.sh runs, in the same order, repeated here for the same reason they
-    exist there: each one is a package an owner cannot put back from the couch. FORCE_SETUPWRAITH=1
-    and TVINPUT_ALLOW=1 mean what they mean in disable.sh, so a TV on Ethernet or an owner who wants
-    the inputs off does not have to remember two switches.
+    exist there: each one is a package an owner cannot put back from the couch. FORCE_SETUPWRAITH=1,
+    TVINPUT_ALLOW=1 and HANDLERS_ALLOW=1 mean what they mean in disable.sh, so a TV on Ethernet or an
+    owner who wants the inputs off does not have to remember more switches.
     """
     skipped = []
     if SETUPWRAITH in names and not os.environ.get("FORCE_SETUPWRAITH"):
@@ -185,6 +195,18 @@ def safety_checks(dev, names):
                                       "disabled those ports stay black and only a full restore and "
                                       "a cold boot bring them back (set TVINPUT_ALLOW=1 to disable "
                                       "it)"))
+    if not os.environ.get("HANDLERS_ALLOW") and any(n not in {k for k, _ in skipped} for n in names):
+        inputs, settings = handler_apps(dev)
+        for name in names:
+            if any(name == skipped_name for skipped_name, _ in skipped):
+                continue
+            if name in inputs:
+                skipped.append((name, "the TV opens its HDMI/AV inputs and channels with it, so with "
+                                      "it disabled the launcher's input tiles do nothing (set "
+                                      "HANDLERS_ALLOW=1 to disable it)"))
+            elif name in settings:
+                skipped.append((name, "the TV opens Settings with it, so with it disabled Settings "
+                                      "does not open (set HANDLERS_ALLOW=1 to disable it)"))
     return skipped
 
 

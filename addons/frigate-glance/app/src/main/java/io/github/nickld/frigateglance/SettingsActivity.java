@@ -27,7 +27,7 @@ import org.json.JSONObject;
  */
 public class SettingsActivity extends Activity {
     private static final long REFRESH_MS = 2000;
-    private static final int SNOOZED = 0xFFFFB454, CARDS_ON = 0xFF3DDC84;
+    private static final int SNOOZED = 0xFFFFB454, CARDS_ON = 0xFF3DDC84, WARNING = 0xFFFFB454;
     private static final String[] SECTIONS = {"Overview", "Cameras", "Alerts", "Card", "Remote"};
     private static final Map<String, String> CORNER_NAMES = Map.of(
             "top-right", "Top right", "top-left", "Top left", "bottom-left", "Bottom left", "bottom-right", "Bottom right");
@@ -139,7 +139,10 @@ public class SettingsActivity extends Activity {
                 });
                 divider();
                 mqttRow = info("MQTT broker", "");
-                frigateRow = info("Frigate", "");
+                frigateRow = row("Frigate", "", "", () -> {
+                    GlanceService.checkFrigate(!GlanceService.overview().offeredPin.isEmpty());
+                    main.postDelayed(this::updateLive, 1500);
+                });
                 messagesRow = info("Last message from Frigate", "");
                 lastCardRow = info("Last card", "");
                 tvRow = info("On this TV", "");
@@ -347,12 +350,24 @@ public class SettingsActivity extends Activity {
         status.setText(GlanceService.statusLine());
         if (mqttRow != null) {
             GlanceService.Overview o = GlanceService.overview();
-            mqttRow.setDetail(o.mqttHost);
-            mqttRow.setValue(!o.running ? "Not running" : o.mqttUp ? "Connected " + ago(o.mqttSince)
-                    : "Not connected" + (o.mqttError.isEmpty() ? "" : ": " + o.mqttError));
-            frigateRow.setDetail(o.frigateHost + (o.cameras > 0 ? " · " + o.cameras + " cameras" : ""));
-            frigateRow.setValue(!o.running ? "Not running" : o.frigateUp ? "Reachable"
-                    : "Not reached" + (o.frigateError.isEmpty() ? "" : ": " + o.frigateError));
+            // Errors go under the address: in the value they squeeze the address into a narrow column.
+            mqttRow.setDetail(dots(o.mqttHost, o.running && !o.mqttUp ? o.mqttError : ""));
+            mqttRow.setValue(!o.running ? "Not running" : o.mqttUp ? "Connected " + ago(o.mqttSince) : "Not connected");
+            if (!o.running) {
+                frigateRow.setDetail(o.frigateHost);
+                frigateRow.setValue("Not running");
+            } else if (!o.offeredPin.isEmpty()) {
+                frigateRow.setDetail(dots(o.frigateHost, "Frigate shows a new certificate (" + o.offeredPin.substring(0, 12)
+                        + ", trusted was " + o.pin.substring(0, 12) + "). Frigate makes a new one when it is"
+                        + " reinstalled or updated; if that just happened, OK trusts it."));
+                frigateRow.setValue("New certificate", WARNING);
+            } else if (o.frigateUp) {
+                frigateRow.setDetail(dots(o.frigateHost, o.cameras > 0 ? o.cameras + " cameras" : "", "OK reads the cameras again."));
+                frigateRow.setValue("Reachable");
+            } else {
+                frigateRow.setDetail(dots(o.frigateHost, o.frigateError, "OK tries again."));
+                frigateRow.setValue("Not reached");
+            }
             messagesRow.setDetail("An alert or a tracked object. Quiet is normal while nothing moves.");
             messagesRow.setValue(o.lastMessageAt == 0 ? "None yet" : ago(o.lastMessageAt));
             lastCardRow.setDetail(OverlayCard.lastTitle);
@@ -409,6 +424,17 @@ public class SettingsActivity extends Activity {
 
     private int px(int dp) {
         return Math.round(dp * getResources().getDisplayMetrics().density);
+    }
+
+    /** The non-empty parts, joined with " · ": the address is empty until the service has read the config. */
+    private static String dots(String... parts) {
+        StringBuilder s = new StringBuilder();
+        for (String p : parts) {
+            if (p == null || p.isEmpty()) continue;
+            if (s.length() > 0) s.append(" · ");
+            s.append(p);
+        }
+        return s.toString();
     }
 
     private static String onOff(boolean on) {
