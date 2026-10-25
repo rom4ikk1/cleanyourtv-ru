@@ -28,11 +28,33 @@ final class IviInfo {
     /** Description and meta line ("2009–2025  ·  Кинопоиск 7.5  ·  Иви 7.3"); both empty when nothing was found. */
     static final class Info {
         final String description, meta;
+        /** ivi's title for what it found, and its wide picture (or poster); empty when nothing was found. */
+        final String title, picture;
 
         Info(String description, String meta) {
+            this(description, meta, "", "");
+        }
+
+        Info(String description, String meta, String title, String picture) {
             this.description = description;
             this.meta = meta;
+            this.title = title;
+            this.picture = picture;
         }
+    }
+
+    /** ivi's entry for exactly this title (blocking, off the main thread), or null: for films from other catalogues. */
+    static Info sameTitle(String title) {
+        Info hit = CACHE.get("=" + title);
+        if (hit == null) {
+            hit = search(title);
+            CACHE.put("=" + title, hit);
+        }
+        return normalize(hit.title).equals(normalize(title)) ? hit : null;
+    }
+
+    private static String normalize(String s) {
+        return s.toLowerCase(java.util.Locale.ROOT).replace('ё', 'е').replaceAll("[^\\p{L}\\p{N}]+", "");
     }
 
     private static final Map<String, Info> CACHE = new ConcurrentHashMap<>();
@@ -97,7 +119,12 @@ final class IviInfo {
             if (!kp.isEmpty() && !kp.startsWith("0")) append(meta, "Кинопоиск " + trim(kp));
             double ivi = r.optDouble("ivi_rating_10", 0);
             if (ivi > 0) append(meta, "Иви " + String.format(java.util.Locale.ROOT, "%.1f", ivi));
-            return new Info(desc, meta.toString());
+            String picture = "";
+            JSONArray promo = r.optJSONArray("promo_images");
+            if (promo != null && promo.length() > 0) picture = promo.getJSONObject(0).optString("url", "");
+            JSONArray posters = r.optJSONArray("posters");
+            if (picture.isEmpty() && posters != null && posters.length() > 0) picture = posters.getJSONObject(0).optString("url", "");
+            return new Info(desc, meta.toString(), r.optString("title", ""), picture);
         } catch (Exception e) {
             Log.w("TvHome.Ivi", "Lookup failed for " + query + ": " + e);
             return new Info("", "");

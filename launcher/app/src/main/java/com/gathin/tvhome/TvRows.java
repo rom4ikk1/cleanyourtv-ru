@@ -148,6 +148,21 @@ final class TvRows {
             String pkg = entry.replaceFirst("=.*$", "");
             boolean direct = entry.endsWith("=direct");
             boolean byTmdb = entry.endsWith("=tmdb");
+            if (entry.endsWith("=num")) {
+                // NUM's own list (NumReleases), so Home shows what NUM shows.
+                List<Row> kept = new ArrayList<>();
+                List<Row> rows = byPackage.get(pkg);
+                if (rows != null) {
+                    for (Row r : rows) {
+                        if (r.title.equals(continueTitle) || HISTORY.matcher(r.title).find()) kept.add(r);
+                    }
+                }
+                List<Program> own = NumReleases.load(context);
+                if (!own.isEmpty()) kept.add(new Row(context.getString(R.string.row_new_movies), own));
+                if (kept.isEmpty()) byPackage.remove(pkg);
+                else byPackage.put(pkg, kept);
+                continue;
+            }
             List<Row> kept = new ArrayList<>();
             List<Row> rows = byPackage.get(pkg);
             if (rows != null) {
